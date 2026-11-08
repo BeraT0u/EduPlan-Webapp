@@ -16,9 +16,16 @@ class CoursesScreen extends StatefulWidget {
 
 class _CoursesScreenState extends State<CoursesScreen> {
   final WebCourseService _courseService = WebCourseService();
+  final ScrollController _horizontalScrollCtrl = ScrollController();
   String _searchQuery = '';
   String _statusFilter = 'all';
   String _categoryFilter = 'all';
+
+  @override
+  void dispose() {
+    _horizontalScrollCtrl.dispose();
+    super.dispose();
+  }
 
   void _showCourseDialog({
     required List<CourseModel> allCourses,
@@ -661,93 +668,138 @@ class _CoursesScreenState extends State<CoursesScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(AppColors.backgroundCanvas),
-                      columns: const [
-                        DataColumn(label: Text('Mã môn', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tên môn học', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Số TC', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Độ khó', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Giờ tự học', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tiên quyết', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Tỷ trọng điểm', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Trạng thái', style: TextStyle(fontWeight: FontWeight.bold))),
-                        DataColumn(label: Text('Hành động', style: TextStyle(fontWeight: FontWeight.bold))),
-                      ],
-                      rows: filteredCourses.map((course) {
-                        final b = course.assessmentBreakdown;
-                        final breakdownSummary = b.isNotEmpty
-                            ? 'A:${b['assignment'] ?? 0}% L:${b['lab'] ?? 0}% PE:${b['pe'] ?? 0}% FE:${b['fe'] ?? 0}%'
-                            : 'Chưa cài';
+                  child: Scrollbar(
+                    controller: _horizontalScrollCtrl,
+                    thumbVisibility: true,
+                    trackVisibility: true,
+                    child: SingleChildScrollView(
+                      controller: _horizontalScrollCtrl,
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columnSpacing: 18,
+                        horizontalMargin: 16,
+                        showCheckboxColumn: false,
+                        headingRowColor: WidgetStateProperty.all(AppColors.backgroundCanvas),
+                        columns: const [
+                          DataColumn(label: Text('Mã môn', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Tên môn học', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Số TC', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Độ khó', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Giờ tự học', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Tiên quyết', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Tỷ trọng điểm', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Trạng thái', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(label: Text('Hành động', style: TextStyle(fontWeight: FontWeight.bold))),
+                        ],
+                        rows: filteredCourses.map((course) {
+                          final b = course.assessmentBreakdown;
+                          final breakdownSummary = b.isNotEmpty
+                              ? 'A:${b['assignment'] ?? 0}% L:${b['lab'] ?? 0}% PE:${b['pe'] ?? 0}% FE:${b['fe'] ?? 0}%'
+                              : 'Chưa cài';
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(course.code, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryBlue))),
-                            DataCell(
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(course.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  Text(course.category, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                                ],
-                              ),
-                            ),
-                            DataCell(Text('${course.credits} TC')),
-                            DataCell(Text('${course.difficulty.toStringAsFixed(1)} ⭐')),
-                            DataCell(Text('${course.defaultSelfStudyHours.toInt()}h/tuần')),
-                            DataCell(Text(course.prerequisiteCode ?? '—')),
-                            DataCell(
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.backgroundCanvas,
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: AppColors.borderStructural),
+                          return DataRow(
+                            onSelectChanged: (_) => _showCourseDialog(allCourses: rawCourses, existingCourse: course),
+                            cells: [
+                              DataCell(
+                                Tooltip(
+                                  message: 'Bấm để chỉnh sửa môn học này',
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        course.code,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.primaryBlue,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(Icons.edit_outlined, size: 14, color: AppColors.primaryBlue),
+                                    ],
+                                  ),
                                 ),
-                                child: Text(breakdownSummary, style: const TextStyle(fontSize: 11)),
                               ),
-                            ),
-                            DataCell(_buildStatusBadge(course.status)),
-                            DataCell(
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined, size: 18),
-                                    tooltip: 'Chỉnh sửa môn học',
-                                    onPressed: () => _showCourseDialog(allCourses: rawCourses, existingCourse: course),
+                              DataCell(
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(course.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    Text(course.category, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                              DataCell(Text('${course.credits} TC')),
+                              DataCell(Text('${course.difficulty.toStringAsFixed(1)} ⭐')),
+                              DataCell(Text('${course.defaultSelfStudyHours.toInt()}h/tuần')),
+                              DataCell(Text(course.prerequisiteCode ?? '—')),
+                              DataCell(
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.backgroundCanvas,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: AppColors.borderStructural),
                                   ),
-                                  IconButton(
-                                    icon: Icon(
-                                      course.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
-                                      size: 18,
-                                      color: AppColors.textSecondary,
+                                  child: Text(breakdownSummary, style: const TextStyle(fontSize: 11)),
+                                ),
+                              ),
+                              DataCell(_buildStatusBadge(course.status)),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    FilledButton.tonalIcon(
+                                      onPressed: () => _showCourseDialog(allCourses: rawCourses, existingCourse: course),
+                                      icon: const Icon(Icons.edit, size: 14),
+                                      label: const Text('Sửa', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      style: FilledButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        visualDensity: VisualDensity.compact,
+                                        backgroundColor: AppColors.primaryBlueSurface,
+                                        foregroundColor: AppColors.primaryBlue,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                      ),
                                     ),
-                                    tooltip: course.isArchived ? 'Khôi phục (Publish)' : 'Lưu trữ / Ẩn (Archive)',
-                                    onPressed: () {
-                                      final targetStatus = course.isArchived ? 'published' : 'archived';
-                                      _courseService.setCourseStatus(
-                                        course.id.isNotEmpty ? course.id : course.code,
-                                        targetStatus,
-                                      );
-                                    },
-                                  ),
-                                  // Hard Delete: ONLY FOR ADMIN
-                                  if (widget.currentUser.isAdmin)
+                                    const SizedBox(width: 6),
                                     IconButton(
-                                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.dangerText),
-                                      tooltip: 'Xóa vĩnh viễn (Admin)',
-                                      onPressed: () => _confirmDeleteCourse(course),
+                                      icon: Icon(
+                                        course.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
+                                        size: 18,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      tooltip: course.isArchived ? 'Khôi phục (Publish)' : 'Lưu trữ / Ẩn (Archive)',
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.all(4),
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () {
+                                        final targetStatus = course.isArchived ? 'published' : 'archived';
+                                        _courseService.setCourseStatus(
+                                          course.id.isNotEmpty ? course.id : course.code,
+                                          targetStatus,
+                                        );
+                                      },
                                     ),
-                                ],
+                                    // Hard Delete: ONLY FOR ADMIN
+                                    if (widget.currentUser.isAdmin) ...[
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.dangerText),
+                                        tooltip: 'Xóa vĩnh viễn (Admin)',
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.all(4),
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () => _confirmDeleteCourse(course),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+                            ],
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
                 ),
