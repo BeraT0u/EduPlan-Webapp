@@ -30,4 +30,49 @@ class WebPlanService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<List<Map<String, dynamic>>> getCompletedCoursesForStudent(
+    String userId, {
+    String? semesterName,
+  }) async {
+    try {
+      final snap = await _firestore
+          .collection('students')
+          .doc(userId)
+          .collection('completed_courses')
+          .get();
+
+      if (snap.docs.isEmpty) return [];
+
+      final list = snap.docs.map((d) => d.data()).toList();
+      if (semesterName != null && semesterName.isNotEmpty) {
+        final matches = list.where((c) {
+          final sem = c['semesterName'] as String?;
+          return sem != null &&
+              (sem == semesterName ||
+                  semesterName.contains(sem) ||
+                  sem.contains(semesterName));
+        }).toList();
+        if (matches.isNotEmpty) return matches;
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> confirmSemesterAcceptance({
+    required String planId,
+    required String reviewerEmail,
+    required String reviewReason,
+  }) async {
+    await _plansRef.doc(planId).update({
+      'status': 'completed',
+      'isCompleted': true,
+      'reviewReason': reviewReason,
+      'reviewedBy': reviewerEmail,
+      'reviewedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
 }
