@@ -285,7 +285,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: ratio,
-            backgroundColor: AppColors.borderStructural.withOpacity(0.4),
+            backgroundColor: AppColors.borderStructural.withValues(alpha: 0.4),
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 10,
           ),

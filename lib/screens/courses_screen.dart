@@ -3,6 +3,7 @@ import '../models/course_model.dart';
 import '../models/user_model.dart';
 import '../services/web_course_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/app_alert_banner.dart';
 
 class CoursesScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -17,99 +18,361 @@ class _CoursesScreenState extends State<CoursesScreen> {
   final WebCourseService _courseService = WebCourseService();
   String _searchQuery = '';
   String _statusFilter = 'all';
+  String _categoryFilter = 'all';
 
-  void _showCourseDialog({CourseModel? existingCourse}) {
+  void _showCourseDialog({
+    required List<CourseModel> allCourses,
+    CourseModel? existingCourse,
+  }) {
     final isEditing = existingCourse != null;
     final codeCtrl = TextEditingController(text: existingCourse?.code ?? '');
     final nameCtrl = TextEditingController(text: existingCourse?.name ?? '');
     final creditsCtrl = TextEditingController(text: '${existingCourse?.credits ?? 3}');
     final hoursCtrl = TextEditingController(text: '${existingCourse?.defaultSelfStudyHours ?? 7.0}');
-    final prereqCtrl = TextEditingController(text: existingCourse?.prerequisiteCode ?? '');
+    
+    // Assessment Breakdown
+    final existingBreakdown = existingCourse?.assessmentBreakdown ?? {};
+    final assignmentCtrl = TextEditingController(text: '${existingBreakdown['assignment'] ?? 20}');
+    final labCtrl = TextEditingController(text: '${existingBreakdown['lab'] ?? 20}');
+    final peCtrl = TextEditingController(text: '${existingBreakdown['pe'] ?? 30}');
+    final feCtrl = TextEditingController(text: '${existingBreakdown['fe'] ?? 30}');
+
+    // Study Tips
+    final tipCtrl = TextEditingController();
+    List<String> studyTips = List.from(existingCourse?.studyTips ?? [
+      'Đọc giáo trình và hoàn thiện bài tập thực hành hàng tuần.',
+    ]);
+
     String category = existingCourse?.category ?? 'Chuyên ngành SE';
     String status = existingCourse?.status ?? 'published';
     double difficulty = existingCourse?.difficulty ?? 3.0;
+    String? prereqCode = existingCourse?.prerequisiteCode;
+
+    // Filter available prerequisite options (exclude self)
+    final availablePrereqs = allCourses
+        .where((c) => c.code != existingCourse?.code)
+        .map((c) => c.code)
+        .toSet()
+        .toList()..sort();
+
+    String? dialogError;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final a = int.tryParse(assignmentCtrl.text) ?? 0;
+            final l = int.tryParse(labCtrl.text) ?? 0;
+            final pe = int.tryParse(peCtrl.text) ?? 0;
+            final fe = int.tryParse(feCtrl.text) ?? 0;
+            final totalPercent = a + l + pe + fe;
+            final isSum100 = totalPercent == 100;
+
             return AlertDialog(
               backgroundColor: AppColors.cardSurface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              title: Text(
-                isEditing ? 'Chỉnh Sửa Môn Học: ${existingCourse.code}' : 'Thêm Môn Học Mới',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlueSurface,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isEditing ? Icons.edit_note : Icons.add_circle_outline,
+                      color: AppColors.primaryBlue,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    isEditing ? 'Chỉnh Sửa Môn Học: ${existingCourse.code}' : 'Thêm Môn Học Mới',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
               ),
               content: SizedBox(
-                width: 500,
+                width: 620,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextField(
-                        controller: codeCtrl,
-                        enabled: !isEditing,
-                        decoration: const InputDecoration(
-                          labelText: 'Mã môn (Ví dụ: PRN231, AIE411)',
-                          hintText: 'Tối đa 12 ký tự, viết hoa',
-                        ),
+                      if (dialogError != null) ...[
+                        AppAlertBanner(message: dialogError!, isError: true),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // Code & Name
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: codeCtrl,
+                              enabled: !isEditing,
+                              textCapitalization: TextCapitalization.characters,
+                              maxLength: 12,
+                              decoration: const InputDecoration(
+                                labelText: 'Mã môn (Viết hoa)',
+                                hintText: 'PRM393, PRO192...',
+                                counterText: '',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 3,
+                            child: TextField(
+                              controller: nameCtrl,
+                              maxLength: 120,
+                              decoration: const InputDecoration(
+                                labelText: 'Tên môn học',
+                                hintText: 'Lập trình Di động...',
+                                counterText: '',
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: nameCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Tên môn học',
-                          hintText: 'Tối đa 120 ký tự',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
+
+                      // Credits & Self-Study Hours
                       Row(
                         children: [
                           Expanded(
                             child: TextField(
                               controller: creditsCtrl,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(labelText: 'Số tín chỉ (1..10)'),
+                              decoration: const InputDecoration(
+                                labelText: 'Số tín chỉ (1..10)',
+                                suffixText: 'TC',
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: TextField(
                               controller: hoursCtrl,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(labelText: 'Giờ tự học/tuần'),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                labelText: 'Giờ tự học/tuần',
+                                suffixText: 'h/tuần',
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: prereqCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Môn tiên quyết (để trống nếu không có)',
-                          hintText: 'Ví dụ: PRO192',
+                      const SizedBox(height: 14),
+
+                      // Prerequisite & Category
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              initialValue: prereqCode,
+                              decoration: const InputDecoration(labelText: 'Môn tiên quyết'),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('— Không có (None) —', style: TextStyle(color: AppColors.textMuted)),
+                                ),
+                                ...availablePrereqs.map((code) {
+                                  return DropdownMenuItem<String?>(
+                                    value: code,
+                                    child: Text(code),
+                                  );
+                                }),
+                              ],
+                              onChanged: (val) => setDialogState(() => prereqCode = val),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: category,
+                              decoration: const InputDecoration(labelText: 'Danh mục môn học'),
+                              items: const [
+                                DropdownMenuItem(value: 'Chuyên ngành SE', child: Text('Chuyên ngành SE')),
+                                DropdownMenuItem(value: 'Cơ sở ngành', child: Text('Cơ sở ngành')),
+                                DropdownMenuItem(value: 'Toán & Thống kê', child: Text('Toán & Thống kê')),
+                                DropdownMenuItem(value: 'Đại cương', child: Text('Đại cương')),
+                                DropdownMenuItem(value: 'Kỹ năng mềm', child: Text('Kỹ năng mềm')),
+                              ],
+                              onChanged: (val) => setDialogState(() => category = val ?? category),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Difficulty Slider
+                      Text(
+                        'Độ khó môn học: ${difficulty.toStringAsFixed(1)} / 5.0 ⭐',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      Slider(
+                        value: difficulty,
+                        min: 1.0,
+                        max: 5.0,
+                        divisions: 8,
+                        label: '${difficulty.toStringAsFixed(1)} ⭐',
+                        activeColor: AppColors.primaryBlue,
+                        onChanged: (v) => setDialogState(() => difficulty = v),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Assessment Breakdown (% Assignment, Lab, PE, FE)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundCanvas,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSum100 ? AppColors.borderStructural : AppColors.dangerBorder,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Tỷ trọng điểm đánh giá (Tổng = 100%)',
+                                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                ),
+                                Text(
+                                  'Tổng: $totalPercent%',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: isSum100 ? AppColors.successText : AppColors.dangerText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: assignmentCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(labelText: 'Assignment %', isDense: true),
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: labCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(labelText: 'Lab %', isDense: true),
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: peCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(labelText: 'PE %', isDense: true),
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: feCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(labelText: 'FE %', isDense: true),
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: category,
-                        decoration: const InputDecoration(labelText: 'Danh mục môn học'),
-                        items: const [
-                          DropdownMenuItem(value: 'Chuyên ngành SE', child: Text('Chuyên ngành SE')),
-                          DropdownMenuItem(value: 'Cơ sở ngành', child: Text('Cơ sở ngành')),
-                          DropdownMenuItem(value: 'Toán & Thống kê', child: Text('Toán & Thống kê')),
-                          DropdownMenuItem(value: 'Đại cương', child: Text('Đại cương')),
-                        ],
-                        onChanged: (val) => setDialogState(() => category = val ?? category),
+                      const SizedBox(height: 14),
+
+                      // Study Tips Section
+                      const Text(
+                        'Mẹo học tập cho sinh viên (Study Tips):',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: tipCtrl,
+                              decoration: const InputDecoration(
+                                hintText: 'Nhập mẹo học tập (VD: Làm trước Lab 1-4)...',
+                                isDense: true,
+                              ),
+                              onSubmitted: (val) {
+                                if (val.trim().isNotEmpty) {
+                                  setDialogState(() {
+                                    studyTips.add(val.trim());
+                                    tipCtrl.clear();
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              if (tipCtrl.text.trim().isNotEmpty) {
+                                setDialogState(() {
+                                  studyTips.add(tipCtrl.text.trim());
+                                  tipCtrl.clear();
+                                });
+                              }
+                            },
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Thêm mẹo'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (studyTips.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: studyTips.asMap().entries.map((entry) {
+                            return Chip(
+                              backgroundColor: AppColors.backgroundCanvas,
+                              side: const BorderSide(color: AppColors.borderStructural),
+                              label: Text(entry.value, style: const TextStyle(fontSize: 12)),
+                              deleteIcon: const Icon(Icons.close, size: 14),
+                              onDeleted: () {
+                                setDialogState(() {
+                                  studyTips.removeAt(entry.key);
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+
+                      // Status Field
                       DropdownButtonFormField<String>(
-                        value: status,
+                        initialValue: status,
                         decoration: const InputDecoration(labelText: 'Trạng thái phát hành'),
                         items: const [
                           DropdownMenuItem(value: 'published', child: Text('Published (Công khai cho Mobile)')),
-                          DropdownMenuItem(value: 'draft', child: Text('Draft (Bản nháp)')),
+                          DropdownMenuItem(value: 'draft', child: Text('Draft (Bản nháp nội bộ)')),
                           DropdownMenuItem(value: 'archived', child: Text('Archived (Lưu trữ / Ẩn)')),
                         ],
                         onChanged: (val) => setDialogState(() => status = val ?? status),
@@ -121,7 +384,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Hủy'),
+                  child: const Text('Hủy bỏ'),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -129,9 +392,16 @@ class _CoursesScreenState extends State<CoursesScreen> {
                     final name = nameCtrl.text.trim();
                     final credits = int.tryParse(creditsCtrl.text) ?? 3;
                     final hours = double.tryParse(hoursCtrl.text) ?? 7.0;
-                    final prereq = prereqCtrl.text.trim().isEmpty ? null : prereqCtrl.text.trim().toUpperCase();
 
-                    if (code.isEmpty || name.isEmpty) return;
+                    if (code.isEmpty || name.isEmpty) {
+                      setDialogState(() => dialogError = 'Vui lòng điền đầy đủ Mã môn và Tên môn.');
+                      return;
+                    }
+
+                    if (totalPercent != 100) {
+                      setDialogState(() => dialogError = 'Tổng tỷ trọng điểm (Assignment + Lab + PE + FE) bắt buộc phải bằng 100%.');
+                      return;
+                    }
 
                     final course = CourseModel(
                       id: isEditing ? existingCourse.id : code,
@@ -139,23 +409,34 @@ class _CoursesScreenState extends State<CoursesScreen> {
                       name: name,
                       credits: credits,
                       defaultSelfStudyHours: hours,
-                      prerequisiteCode: prereq,
+                      prerequisiteCode: prereqCode,
                       category: category,
                       status: status,
                       difficulty: difficulty,
+                      assessmentBreakdown: {
+                        'assignment': a,
+                        'lab': l,
+                        'pe': pe,
+                        'fe': fe,
+                      },
+                      studyTips: studyTips,
                     );
 
-                    if (isEditing) {
-                      await _courseService.updateCourse(course);
-                    } else {
-                      await _courseService.addCourse(course);
+                    try {
+                      if (isEditing) {
+                        await _courseService.updateCourse(course);
+                      } else {
+                        await _courseService.addCourse(course);
+                      }
+                      if (mounted) Navigator.pop(context);
+                    } catch (e) {
+                      setDialogState(() => dialogError = 'Lỗi lưu Firestore: $e');
                     }
-
-                    if (mounted) Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
                   child: Text(isEditing ? 'Lưu Thay Đổi' : 'Tạo Môn Học'),
                 ),
@@ -173,6 +454,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Row(
             children: const [
               Icon(Icons.warning_amber_rounded, color: AppColors.dangerText),
@@ -182,10 +464,10 @@ class _CoursesScreenState extends State<CoursesScreen> {
           ),
           content: Text(
             'Hành động này sẽ XÓA CỨNG môn học "${course.code} - ${course.name}" khỏi cơ sở dữ liệu Cloud Firestore.\n\n'
-            'Chỉ Quản trị viên (Admin) mới có quyền thực hiện. Bạn có chắc chắn muốn xóa không?',
+            'Chỉ Quản trị viên (Admin) mới có quyền thực hiện. Mọi kế hoạch hoặc tham chiếu môn này sẽ bị ảnh hưởng. Bạn có chắc chắn muốn xóa không?',
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy bỏ')),
             ElevatedButton(
               onPressed: () async {
                 await _courseService.deleteCourse(course.id.isNotEmpty ? course.id : course.code);
@@ -205,163 +487,274 @@ class _CoursesScreenState extends State<CoursesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Toolbar
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.cardSurface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderStructural),
-          ),
-          child: Row(
-            children: [
-              // Search Field
-              Expanded(
-                child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Tìm kiếm theo mã môn hoặc tên môn...',
-                    prefixIcon: Icon(Icons.search, size: 20),
-                    isDense: true,
+    return StreamBuilder<List<CourseModel>>(
+      stream: _courseService.streamCourses(),
+      builder: (context, snapshot) {
+        // 1. Loading State
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(60),
+              child: CircularProgressIndicator(color: AppColors.primaryBlue),
+            ),
+          );
+        }
+
+        // 2. Error State
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: AppAlertBanner(
+                message: 'Không thể tải danh mục môn học: ${snapshot.error}',
+                isError: true,
+              ),
+            ),
+          );
+        }
+
+        final rawCourses = snapshot.data ?? [];
+
+        // Apply Search & Filter
+        var filteredCourses = rawCourses.where((c) {
+          final matchesQuery = _searchQuery.isEmpty ||
+              c.code.toLowerCase().contains(_searchQuery) ||
+              c.name.toLowerCase().contains(_searchQuery);
+          final matchesStatus = _statusFilter == 'all' || c.status == _statusFilter;
+          final matchesCategory = _categoryFilter == 'all' || c.category == _categoryFilter;
+          return matchesQuery && matchesStatus && matchesCategory;
+        }).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Toolbar (Search + Filters + Add Button)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.cardSurface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderStructural),
+              ),
+              child: Row(
+                children: [
+                  // Search Field
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm theo mã môn hoặc tên môn...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        isDense: true,
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () => setState(() => _searchQuery = ''),
+                              )
+                            : null,
+                      ),
+                      onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                    ),
                   ),
-                  onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
-                ),
-              ),
-              const SizedBox(width: 16),
+                  const SizedBox(width: 12),
 
-              // Status Filter
-              DropdownButton<String>(
-                value: _statusFilter,
-                underline: const SizedBox(),
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text('Tất cả trạng thái')),
-                  DropdownMenuItem(value: 'published', child: Text('Published')),
-                  DropdownMenuItem(value: 'draft', child: Text('Draft')),
-                  DropdownMenuItem(value: 'archived', child: Text('Archived')),
+                  // Category Filter
+                  DropdownButton<String>(
+                    value: _categoryFilter,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('Tất cả danh mục')),
+                      DropdownMenuItem(value: 'Chuyên ngành SE', child: Text('Chuyên ngành SE')),
+                      DropdownMenuItem(value: 'Cơ sở ngành', child: Text('Cơ sở ngành')),
+                      DropdownMenuItem(value: 'Toán & Thống kê', child: Text('Toán & Thống kê')),
+                      DropdownMenuItem(value: 'Đại cương', child: Text('Đại cương')),
+                      DropdownMenuItem(value: 'Kỹ năng mềm', child: Text('Kỹ năng mềm')),
+                    ],
+                    onChanged: (val) => setState(() => _categoryFilter = val ?? 'all'),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Status Filter
+                  DropdownButton<String>(
+                    value: _statusFilter,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('Tất cả trạng thái')),
+                      DropdownMenuItem(value: 'published', child: Text('Published')),
+                      DropdownMenuItem(value: 'draft', child: Text('Draft')),
+                      DropdownMenuItem(value: 'archived', child: Text('Archived')),
+                    ],
+                    onChanged: (val) => setState(() => _statusFilter = val ?? 'all'),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Add Course Button
+                  ElevatedButton.icon(
+                    onPressed: () => _showCourseDialog(allCourses: rawCourses),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Thêm Môn Học Mới'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
                 ],
-                onChanged: (val) => setState(() => _statusFilter = val ?? 'all'),
               ),
-              const SizedBox(width: 16),
+            ),
 
-              // Add Course Button
-              ElevatedButton.icon(
-                onPressed: () => _showCourseDialog(),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Thêm Môn Học Mới'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                ),
-              ),
-            ],
-          ),
-        ),
+            const SizedBox(height: 20),
 
-        const SizedBox(height: 20),
-
-        // Courses Table
-        StreamBuilder<List<CourseModel>>(
-          stream: _courseService.streamCourses(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
-            }
-
-            var courses = snapshot.data ?? [];
-            if (_searchQuery.isNotEmpty) {
-              courses = courses.where((c) {
-                return c.code.toLowerCase().contains(_searchQuery) ||
-                       c.name.toLowerCase().contains(_searchQuery);
-              }).toList();
-            }
-            if (_statusFilter != 'all') {
-              courses = courses.where((c) => c.status == _statusFilter).toList();
-            }
-
-            if (courses.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(40),
+            // 3. Empty State
+            if (filteredCourses.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(48),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.cardSurface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.borderStructural),
                 ),
-                child: const Text('Không tìm thấy môn học nào phù hợp.'),
-              );
-            }
-
-            return Container(
-              decoration: BoxDecoration(
-                color: AppColors.cardSurface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderStructural),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: DataTable(
-                  headingRowColor: WidgetStateProperty.all(AppColors.backgroundCanvas),
-                  columns: const [
-                    DataColumn(label: Text('Mã môn', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Tên môn học', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Số TC', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Giờ tự học', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Tiên quyết', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Trạng thái', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('Hành động', style: TextStyle(fontWeight: FontWeight.bold))),
-                  ],
-                  rows: courses.map((course) {
-                    return DataRow(
-                      cells: [
-                        DataCell(Text(course.code, style: const TextStyle(fontWeight: FontWeight.w700))),
-                        DataCell(Text(course.name)),
-                        DataCell(Text('${course.credits} TC')),
-                        DataCell(Text('${course.defaultSelfStudyHours.toInt()}h/tuần')),
-                        DataCell(Text(course.prerequisiteCode ?? '—')),
-                        DataCell(_buildStatusBadge(course.status)),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, size: 18),
-                                tooltip: 'Chỉnh sửa môn học',
-                                onPressed: () => _showCourseDialog(existingCourse: course),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  course.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
-                                  size: 18,
-                                  color: AppColors.textSecondary,
-                                ),
-                                tooltip: course.isArchived ? 'Khôi phục (Publish)' : 'Lưu trữ (Archive)',
-                                onPressed: () {
-                                  final targetStatus = course.isArchived ? 'published' : 'archived';
-                                  _courseService.setCourseStatus(course.id.isNotEmpty ? course.id : course.code, targetStatus);
-                                },
-                              ),
-                              // Hard Delete: ONLY FOR ADMIN
-                              if (widget.currentUser.isAdmin)
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.dangerText),
-                                  tooltip: 'Xóa vĩnh viễn (Admin)',
-                                  onPressed: () => _confirmDeleteCourse(course),
-                                ),
-                            ],
-                          ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.menu_book_outlined, size: 48, color: AppColors.textMuted),
+                    const SizedBox(height: 12),
+                    Text(
+                      rawCourses.isEmpty
+                          ? 'Chưa có môn học nào trong cơ sở dữ liệu.'
+                          : 'Không tìm thấy môn học nào phù hợp với bộ lọc.',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 16),
+                    if (rawCourses.isEmpty)
+                      ElevatedButton.icon(
+                        onPressed: () => _showCourseDialog(allCourses: rawCourses),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Tạo Môn Học Đầu Tiên'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: Colors.white,
                         ),
+                      )
+                    else
+                      OutlinedButton(
+                        onPressed: () => setState(() {
+                          _searchQuery = '';
+                          _statusFilter = 'all';
+                          _categoryFilter = 'all';
+                        }),
+                        child: const Text('Đặt lại bộ lọc'),
+                      ),
+                  ],
+                ),
+              )
+            else
+              // 4. Populated State (Courses Data Table)
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.cardSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderStructural),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(AppColors.backgroundCanvas),
+                      columns: const [
+                        DataColumn(label: Text('Mã môn', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Tên môn học', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Số TC', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Độ khó', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Giờ tự học', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Tiên quyết', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Tỷ trọng điểm', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Trạng thái', style: TextStyle(fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text('Hành động', style: TextStyle(fontWeight: FontWeight.bold))),
                       ],
-                    );
-                  }).toList(),
+                      rows: filteredCourses.map((course) {
+                        final b = course.assessmentBreakdown;
+                        final breakdownSummary = b.isNotEmpty
+                            ? 'A:${b['assignment'] ?? 0}% L:${b['lab'] ?? 0}% PE:${b['pe'] ?? 0}% FE:${b['fe'] ?? 0}%'
+                            : 'Chưa cài';
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(course.code, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryBlue))),
+                            DataCell(
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(course.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  Text(course.category, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                            DataCell(Text('${course.credits} TC')),
+                            DataCell(Text('${course.difficulty.toStringAsFixed(1)} ⭐')),
+                            DataCell(Text('${course.defaultSelfStudyHours.toInt()}h/tuần')),
+                            DataCell(Text(course.prerequisiteCode ?? '—')),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.backgroundCanvas,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: AppColors.borderStructural),
+                                ),
+                                child: Text(breakdownSummary, style: const TextStyle(fontSize: 11)),
+                              ),
+                            ),
+                            DataCell(_buildStatusBadge(course.status)),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined, size: 18),
+                                    tooltip: 'Chỉnh sửa môn học',
+                                    onPressed: () => _showCourseDialog(allCourses: rawCourses, existingCourse: course),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(
+                                      course.isArchived ? Icons.unarchive_outlined : Icons.archive_outlined,
+                                      size: 18,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    tooltip: course.isArchived ? 'Khôi phục (Publish)' : 'Lưu trữ / Ẩn (Archive)',
+                                    onPressed: () {
+                                      final targetStatus = course.isArchived ? 'published' : 'archived';
+                                      _courseService.setCourseStatus(
+                                        course.id.isNotEmpty ? course.id : course.code,
+                                        targetStatus,
+                                      );
+                                    },
+                                  ),
+                                  // Hard Delete: ONLY FOR ADMIN
+                                  if (widget.currentUser.isAdmin)
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.dangerText),
+                                      tooltip: 'Xóa vĩnh viễn (Admin)',
+                                      onPressed: () => _confirmDeleteCourse(course),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
               ),
-            );
-          },
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

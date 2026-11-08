@@ -101,7 +101,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _category,
+                      initialValue: _category,
                       decoration: const InputDecoration(labelText: 'Phân loại thông báo'),
                       items: const [
                         DropdownMenuItem(value: 'Học vụ', child: Text('Học vụ')),
@@ -115,7 +115,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _targetSemester,
+                      initialValue: _targetSemester,
                       decoration: const InputDecoration(labelText: 'Học kỳ áp dụng'),
                       items: const [
                         DropdownMenuItem(value: 'Tất cả các kỳ', child: Text('Tất cả các kỳ')),

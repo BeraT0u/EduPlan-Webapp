@@ -251,7 +251,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: plan.isApproved ? AppColors.successSurface.withOpacity(0.4) : AppColors.dangerSurface.withOpacity(0.4),
+                            color: plan.isApproved ? AppColors.successSurface.withValues(alpha: 0.4) : AppColors.dangerSurface.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
