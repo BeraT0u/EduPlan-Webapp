@@ -1,0 +1,11 @@
+{
+  "name": "EduPlan Web Admin Portal",
+  "short_name": "EduPlan Admin",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FBF6EB",
+  "theme_color": "#2563EB",
+  "description": "EduPlan Web Admin Portal for Academic Advisors and Faculty",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}
