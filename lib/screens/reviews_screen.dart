@@ -246,6 +246,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         final pendingCount = allPlans.where((p) => p.status == 'pending').length;
         final approvedCount = allPlans.where((p) => p.status == 'approved').length;
         final rejectedCount = allPlans.where((p) => p.status == 'rejected').length;
+        final completedCount = allPlans.where((p) => p.status == 'completed').length;
 
         // Apply Tab Filter & Search
         var filteredPlans = allPlans.where((p) {
@@ -281,6 +282,8 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                           _buildTabButton('approved', 'Đã duyệt', approvedCount, AppColors.successText, AppColors.successSurface),
                           const SizedBox(width: 8),
                           _buildTabButton('rejected', 'Yêu cầu sửa', rejectedCount, AppColors.dangerText, AppColors.dangerSurface),
+                          const SizedBox(width: 8),
+                          _buildTabButton('completed', 'Đã hoàn thành', completedCount, const Color(0xFF7E22CE), const Color(0xFFF3E8FF)),
                           const SizedBox(width: 8),
                           _buildTabButton('all', 'Tất cả kế hoạch', allPlans.length, AppColors.neutralText, AppColors.neutralSurface),
                         ],
@@ -737,6 +740,10 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
       bg = AppColors.dangerSurface;
       text = AppColors.dangerText;
       label = 'Yêu cầu sửa';
+    } else if (status == 'completed') {
+      bg = const Color(0xFFF3E8FF);
+      text = const Color(0xFF7E22CE);
+      label = 'Đã hoàn thành';
     }
 
     return Container(
