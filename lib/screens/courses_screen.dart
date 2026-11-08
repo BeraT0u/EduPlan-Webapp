@@ -17,13 +17,22 @@ class CoursesScreen extends StatefulWidget {
 class _CoursesScreenState extends State<CoursesScreen> {
   final WebCourseService _courseService = WebCourseService();
   final ScrollController _horizontalScrollCtrl = ScrollController();
+  final TextEditingController _searchCtrl = TextEditingController();
+  late final Stream<List<CourseModel>> _coursesStream;
   String _searchQuery = '';
   String _statusFilter = 'all';
   String _categoryFilter = 'all';
 
   @override
+  void initState() {
+    super.initState();
+    _coursesStream = _courseService.streamCourses();
+  }
+
+  @override
   void dispose() {
     _horizontalScrollCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -495,7 +504,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<CourseModel>>(
-      stream: _courseService.streamCourses(),
+      stream: _coursesStream,
       builder: (context, snapshot) {
         // 1. Loading State
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -549,14 +558,18 @@ class _CoursesScreenState extends State<CoursesScreen> {
                   Expanded(
                     flex: 3,
                     child: TextField(
+                      controller: _searchCtrl,
                       decoration: InputDecoration(
                         hintText: 'Tìm kiếm theo mã môn hoặc tên môn...',
                         prefixIcon: const Icon(Icons.search, size: 20),
                         isDense: true,
-                        suffixIcon: _searchQuery.isNotEmpty
+                        suffixIcon: _searchCtrl.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () => setState(() => _searchQuery = ''),
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _searchQuery = '');
+                                },
                               )
                             : null,
                       ),
@@ -649,6 +662,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
                     else
                       OutlinedButton(
                         onPressed: () => setState(() {
+                          _searchCtrl.clear();
                           _searchQuery = '';
                           _statusFilter = 'all';
                           _categoryFilter = 'all';
