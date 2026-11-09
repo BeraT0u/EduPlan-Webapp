@@ -35,10 +35,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       // 4 Firestore Aggregation Queries (count)
       final studentsCountSnap = await _firestore.collection('students').count().get();
-      final pendingSnap = await _firestore.collection('study_plans').where('status', isEqualTo: 'pending').count().get();
-      final approvedSnap = await _firestore.collection('study_plans').where('status', isEqualTo: 'approved').count().get();
+      final pendingSnap = await _firestore
+          .collection('study_plans')
+          .where('status', whereIn: ['pending', 'pending_acceptance'])
+          .count()
+          .get();
+      final approvedSnap = await _firestore
+          .collection('study_plans')
+          .where('status', whereIn: ['approved', 'completed'])
+          .count()
+          .get();
       final coursesSnap = await _firestore.collection('courses').where('status', isEqualTo: 'published').count().get();
-      final rejectedSnap = await _firestore.collection('study_plans').where('status', isEqualTo: 'rejected').count().get();
+      final rejectedSnap = await _firestore
+          .collection('study_plans')
+          .where('status', whereIn: ['rejected', 'acceptance_rejected'])
+          .count()
+          .get();
 
       // Recent 5 plans
       final recentDocs = await _firestore.collection('study_plans').limit(5).get();
@@ -311,6 +323,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bg = AppColors.dangerSurface;
       text = AppColors.dangerText;
       label = 'Yêu cầu sửa';
+    } else if (status == 'pending_acceptance') {
+      bg = AppColors.warningSurface;
+      text = AppColors.warningText;
+      label = 'Chờ nghiệm thu';
+    } else if (status == 'acceptance_rejected') {
+      bg = AppColors.dangerSurface;
+      text = AppColors.dangerText;
+      label = 'Yêu cầu sửa điểm';
+    } else if (status == 'completed') {
+      bg = const Color(0xFFF3E8FF);
+      text = const Color(0xFF7E22CE);
+      label = 'Đã nghiệm thu';
     }
 
     return Container(

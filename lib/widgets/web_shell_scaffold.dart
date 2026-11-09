@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import '../theme/app_colors.dart';
@@ -9,6 +10,7 @@ class WebShellScaffold extends StatelessWidget {
   final UserModel currentUser;
   final Widget body;
   final String title;
+  final VoidCallback? onSignOut;
 
   const WebShellScaffold({
     super.key,
@@ -17,6 +19,7 @@ class WebShellScaffold extends StatelessWidget {
     required this.currentUser,
     required this.body,
     required this.title,
+    this.onSignOut,
   });
 
   @override
@@ -142,7 +145,12 @@ class WebShellScaffold extends StatelessWidget {
                       IconButton(
                         icon: const Icon(Icons.logout, size: 18, color: AppColors.dangerText),
                         tooltip: 'Đăng xuất',
-                        onPressed: () => FirebaseAuth.instance.signOut(),
+                        onPressed: () {
+                          if (Firebase.apps.isNotEmpty) {
+                            FirebaseAuth.instance.signOut();
+                          }
+                          onSignOut?.call();
+                        },
                       ),
                     ],
                   ),
@@ -237,12 +245,15 @@ class WebShellScaffold extends StatelessWidget {
                 size: 20,
               ),
               const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? AppColors.primaryBlue : AppColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isSelected ? AppColors.primaryBlue : AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  ),
                 ),
               ),
             ],

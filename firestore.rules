@@ -1,0 +1,249 @@
+rules_version = '2';
+
+// ===============================================================
+// PRM393 Final Assignment: Cloud Firestore Security Rules
+// RBAC Specification (Appendix B & Data Model)
+// Roles: 'user', 'staff', 'admin'
+// ===============================================================
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users/{uid}
+// Fields:
+//   - uid: string (required, immutable) - Firebase Auth UID
+//   - email: string (required) - User email address
+//   - displayName: string (optional) - User's display name
+//   - photoUrl: string (optional) - Avatar URL
+//   - role: string (required, 'user' | 'staff' | 'admin') - User role
+//   - updatedAt: timestamp (optional) - Last update timestamp
+//
+// Collection: students/{uid}
+// Fields:
+//   - uid: string (required, immutable) - Student UID matching auth.uid
+//   - fullName: string (required) - Full name
+//   - studentId: string (required) - Student code (e.g., SE170000)
+//   - major: string (required) - Academic major
+//   - cohort: string (required) - Academic cohort
+//   - accumulatedCredits: int (required) - Accumulated credits
+//   - totalGraduationCredits: int (required) - Graduation credit requirement
+//   - currentGpa: number (required) - Current GPA
+//   - targetGpa: number (required) - Target graduation GPA
+//   - passedCourseCodes: list<string> (required) - Passed courses
+//   - autoWarnWorkload: bool (required) - Workload warning toggle
+//   - personalInfo: map (optional) - Additional settings
+//
+// Subcollection: students/{uid}/completed_courses/{docId}
+// Fields:
+//   - code: string (required) - Course code
+//   - name: string (required) - Course title
+//   - credits: int (required) - Number of credits
+//   - grade: number (required) - Grade point (0.0 - 4.0 or 0 - 10)
+//   - gradeLetter: string (required) - Letter grade
+//   - semesterIndex: int (required) - Semester index
+//   - isPassed: bool (required) - Pass status
+//   - completedAt: timestamp (required) - Completion date
+//
+// Collection: courses/{courseId}
+// Fields:
+//   - id: string (optional) - Course document ID
+//   - code: string (required, size <= 12) - Course code
+//   - name: string (required, size <= 120) - Course name
+//   - credits: int/number (required, 1 <= credits <= 10) - Credits count
+//   - difficulty: number (optional) - Difficulty rating (1..5)
+//   - defaultSelfStudyHours: number (optional) - Default self-study hours/week
+//   - prerequisiteCode: string (optional) - Prerequisite course code
+//   - category: string (optional) - Subject category
+//   - assessmentBreakdown: map (optional) - Breakdown weights
+//   - studyTips: list<string> (optional) - Tips list
+//   - status: string (required, 'draft' | 'published' | 'archived')
+//   - updatedAt: timestamp (optional) - Last update timestamp
+//
+// Collection: study_plans/{planId}
+// Fields:
+//   - id: string (optional) - Study plan document ID
+//   - userId: string (required, immutable) - Creator UID
+//   - studentName: string (optional) - Student name
+//   - studentCode: string (optional) - Student code
+//   - semesterName: string (optional) - Semester name
+//   - courses: list<map> (optional) - List of enrolled courses
+//   - totalCredits: int (optional) - Total plan credits
+//   - totalSelfStudyHours: number (optional) - Self-study hours total
+//   - maxSafeThresholdHours: number (optional) - Safe threshold limit
+//   - targetGpa: number (optional) - Target GPA
+//   - tuitionFee: int (optional) - Tuition fee
+//   - status: string (required, 'draft' | 'pending' | 'approved' | 'rejected' | 'pending_acceptance' | 'completed' | 'acceptance_rejected')
+//   - reviewReason: string (optional, size >= 3 when reviewed by staff/admin)
+//   - reviewedBy: string (optional) - Reviewer identifier / email
+//   - reviewedAt: timestamp (optional) - Review timestamp
+//   - pdfExportedAt: timestamp (optional) - PDF export timestamp
+//   - updatedAt: timestamp (optional) - Last update timestamp
+//
+// Collection: announcements/{id}
+// Fields:
+//   - id: string (optional) - Announcement document ID
+//   - title: string (required, size <= 120) - Announcement title
+//   - body: string (optional, size <= 1000) - Announcement content
+//   - category: string (optional) - Announcement category
+//   - targetSemester: string (optional) - Target semester
+//   - authorUid: string (optional) - Creator UID
+//   - authorName: string (optional) - Creator display name
+//   - status: string (required, 'published' | 'archived')
+//   - createdAt: timestamp (optional) - Creation timestamp
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions: Authentication & Role Verification
+    // ===============================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isStaffOrAdmin() {
+      return isSignedIn() && (getUserRole() == 'staff' || getUserRole() == 'admin');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getUserRole() == 'admin';
+    }
+
+    // ===============================================================
+    // Collection: users/{uid}
+    // ===============================================================
+    match /users/{uid} {
+      // Any authenticated user can read user profiles
+      allow read: if isSignedIn();
+
+      // Users create their own profile upon first sign-in with default role 'user'
+      allow create: if isOwner(uid) && request.resource.data.role == 'user';
+
+      // Profile updates:
+      // - Self: Can update profile fields (displayName, photoUrl) but CANNOT change own role
+      // - Admin: Can update role of OTHER users (nobody changes their own role)
+      allow update: if isSignedIn() && (
+        (isOwner(uid) && request.resource.data.role == resource.data.role) ||
+        (isAdmin() && request.auth.uid != uid && request.resource.data.role in ['user', 'staff', 'admin'])
+      );
+
+      // User documents cannot be deleted directly
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // Collection: students/{uid} & subcollections
+    // ===============================================================
+    match /students/{uid} {
+      // Owner student or staff/admin can read student profiles
+      allow read: if isOwner(uid) || isStaffOrAdmin();
+
+      // Owner student or staff/admin can create, update, or delete profile (allows grade acceptance sync by staff/admin)
+      allow create, update, delete: if isOwner(uid) || isStaffOrAdmin();
+
+      // Subcollection: completed_courses/{docId}
+      match /completed_courses/{docId} {
+        allow read: if isOwner(uid) || isStaffOrAdmin();
+        allow create, update, delete: if isOwner(uid) || isStaffOrAdmin();
+      }
+    }
+
+    // ===============================================================
+    // Collection: courses/{courseId}
+    // ===============================================================
+    match /courses/{courseId} {
+      // Any authenticated user can read 'published' courses; staff/admin can read all
+      allow read: if (isSignedIn() && resource.data.status == 'published') || isStaffOrAdmin();
+
+      // Staff and Admin can create or update courses with size and range validation
+      allow create, update: if isStaffOrAdmin() &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() <= 120 &&
+        request.resource.data.code is string &&
+        request.resource.data.code.size() <= 12 &&
+        request.resource.data.credits >= 1 &&
+        request.resource.data.credits <= 10;
+
+      // Only Admin can hard delete a course (e.g., mistakenly created)
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Collection: study_plans/{planId}
+    // ===============================================================
+    match /study_plans/{planId} {
+      // Owner student or staff/admin can read study plans
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId || isStaffOrAdmin()
+      );
+
+      // Owner student can create plans in 'draft', 'pending', or 'pending_acceptance' status
+      allow create: if isSignedIn() &&
+        request.auth.uid == request.resource.data.userId &&
+        request.resource.data.status in ['draft', 'pending', 'pending_acceptance'];
+
+      // Updates:
+      // a) Owner student:
+      //    - Can update plan when status in ['draft', 'pending', 'rejected'] and new status in ['draft', 'pending'] (cannot self-approve)
+      //    - Can submit grades for acceptance/update PDF when status in ['approved', 'pending_acceptance', 'acceptance_rejected'] and new status in ['approved', 'pending_acceptance'] (cannot self-complete)
+      // b) Staff/Admin:
+      //    - Can review a plan or acceptance request as long as new status in ['approved', 'rejected', 'completed', 'acceptance_rejected'] with reviewReason (>= 3 chars)
+      allow update: if (
+        (isSignedIn() &&
+         request.auth.uid == resource.data.userId &&
+         (!('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId) &&
+         (
+           (resource.data.status in ['draft', 'pending', 'rejected'] &&
+            request.resource.data.status in ['draft', 'pending']) ||
+           (resource.data.status in ['approved', 'pending_acceptance', 'acceptance_rejected'] &&
+            request.resource.data.status in ['approved', 'pending_acceptance'])
+         )
+        ) ||
+        (isStaffOrAdmin() &&
+         request.resource.data.status in ['approved', 'rejected', 'completed', 'acceptance_rejected'] &&
+         request.resource.data.reviewReason is string &&
+         request.resource.data.reviewReason.size() >= 3)
+      );
+
+      // Owner student can only delete plan when in 'draft' status
+      allow delete: if isSignedIn() &&
+        request.auth.uid == resource.data.userId &&
+        resource.data.status == 'draft';
+    }
+
+    // ===============================================================
+    // Collection: announcements/{id}
+    // ===============================================================
+    match /announcements/{id} {
+      // Any authenticated user can read published announcements; staff/admin can read all
+      allow read: if (isSignedIn() && resource.data.status == 'published') || isStaffOrAdmin();
+
+      // Staff and Admin can create or update announcements (title <= 120 chars)
+      allow create, update: if isStaffOrAdmin() &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() <= 120;
+
+      // Only Admin can hard delete announcements
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Default Deny Rule
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

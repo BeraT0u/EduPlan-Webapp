@@ -24,6 +24,8 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
   // Sub-tabs for Plan Mode
   String _activeTab = 'pending';
+  // Sub-tabs for Acceptance Mode
+  String _acceptanceTab = 'pending_acceptance';
   String _searchQuery = '';
   final Set<String> _expandedPlanIds = {};
 
@@ -230,9 +232,25 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     );
   }
 
-  void _showAcceptanceDialog(StudyPlanModel plan) {
-    final reasonCtrl = TextEditingController(text: 'Đã hoàn thành và nghiệm thu kết quả học tập học kỳ.');
+  void _showAcceptanceDialog(StudyPlanModel plan, bool isApprove) {
+    final reasonCtrl = TextEditingController(
+      text: isApprove
+          ? 'Đã kiểm tra bảng điểm và phê duyệt nghiệm thu kết quả học tập học kỳ.'
+          : '',
+    );
     String? errorText;
+
+    final suggestions = isApprove
+        ? [
+            'Đã kiểm tra bảng điểm và phê duyệt nghiệm thu kết quả học tập học kỳ.',
+            'Kết quả học tập tốt, đồng ý nghiệm thu và cộng tín chỉ tích lũy.',
+            'Đã xác nhận hoàn thành các môn học trong kỳ.',
+          ]
+        : [
+            'Điểm môn học nhập chưa khớp với bảng điểm đào tạo, vui lòng kiểm tra lại.',
+            'Thiếu minh chứng điểm kết thúc học phần, vui lòng cập nhật lại điểm.',
+            'Có môn học nhập sai thang điểm 10, vui lòng điều chỉnh và gửi lại.',
+          ];
 
     showDialog(
       context: context,
@@ -248,33 +266,91 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF3E8FF),
+                      color: isApprove ? const Color(0xFFF3E8FF) : AppColors.dangerSurface,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.verified, color: Color(0xFF7E22CE)),
+                    child: Icon(
+                      isApprove ? Icons.verified : Icons.highlight_off,
+                      color: isApprove ? const Color(0xFF7E22CE) : AppColors.dangerText,
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  const Text('Xác Nhận Nghiệm Thu Kỳ Học', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  Text(
+                    isApprove
+                        ? 'Phê Duyệt Nghiệm Thu & Cộng Tín Chỉ'
+                        : 'Yêu Cầu Sửa Bảng Điểm Nghiệm Thu',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                 ],
               ),
               content: SizedBox(
-                width: 500,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Sinh viên: ${plan.studentName} (${plan.studentCode})', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text('Học kỳ nghiệm thu: ${plan.semesterName}'),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: reasonCtrl,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: 'Nhận xét tổng kết của Cố vấn học tập',
-                        errorText: errorText,
+                width: 540,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundCanvas,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.borderStructural),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Sinh viên: ${plan.studentName} ${plan.studentCode.isNotEmpty ? '(${plan.studentCode})' : ''}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Học kỳ nghiệm thu: ${plan.semesterName} • ${plan.submittedGrades.isNotEmpty ? plan.submittedGrades.length : plan.courses.length} môn',
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Gợi ý nhận xét nhanh (Bấm để chọn):',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: suggestions.map((s) {
+                          return ActionChip(
+                            label: Text(s, style: const TextStyle(fontSize: 12)),
+                            backgroundColor: AppColors.backgroundCanvas,
+                            side: const BorderSide(color: AppColors.borderStructural),
+                            onPressed: () {
+                              setDialogState(() {
+                                reasonCtrl.text = s;
+                                errorText = null;
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: reasonCtrl,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Nhận xét nghiệm thu của Cố vấn học tập (Tối thiểu 3 ký tự)',
+                          errorText: errorText,
+                        ),
+                        onChanged: (_) {
+                          if (errorText != null) {
+                            setDialogState(() => errorText = null);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -285,18 +361,19 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       setDialogState(() => errorText = 'Vui lòng nhập tối thiểu 3 ký tự.');
                       return;
                     }
-                    await _planService.confirmSemesterAcceptance(
-                      planId: plan.id,
+                    await _planService.reviewSemesterAcceptance(
+                      plan: plan,
+                      isApproved: isApprove,
                       reviewerEmail: widget.currentUser.email,
                       reviewReason: reasonCtrl.text.trim(),
                     );
                     if (mounted) Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7E22CE),
+                    backgroundColor: isApprove ? const Color(0xFF7E22CE) : AppColors.dangerText,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('Lưu Xác Nhận Nghiệm Thu'),
+                  child: Text(isApprove ? 'Phê Duyệt & Cộng Tín Chỉ' : 'Gửi Yêu Cầu Sửa Điểm'),
                 ),
               ],
             );
@@ -335,14 +412,19 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         final allPlans = snapshot.data ?? [];
 
         // Split into 2 main functional datasets:
-        // 1. Registration Plans (status: pending, approved, rejected)
-        final registrationPlans = allPlans.where((p) => p.status != 'completed').toList();
-        // 2. Acceptance Plans (status: completed)
-        final acceptancePlans = allPlans.where((p) => p.status == 'completed').toList();
+        // 1. Registration Plans (status: pending, approved, rejected, draft)
+        final registrationPlans = allPlans
+            .where((p) => !['pending_acceptance', 'acceptance_rejected', 'completed'].contains(p.status))
+            .toList();
+        // 2. Acceptance Plans (status: pending_acceptance, acceptance_rejected, completed)
+        final acceptancePlans = allPlans
+            .where((p) => ['pending_acceptance', 'acceptance_rejected', 'completed'].contains(p.status))
+            .toList();
 
         final pendingCount = registrationPlans.where((p) => p.status == 'pending').length;
         final approvedCount = registrationPlans.where((p) => p.status == 'approved').length;
         final rejectedCount = registrationPlans.where((p) => p.status == 'rejected').length;
+        final pendingAcceptanceCount = acceptancePlans.where((p) => p.status == 'pending_acceptance').length;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -363,7 +445,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       icon: Icons.checklist_rtl_rounded,
                       title: '1. Duyệt Kế Hoạch Học Tập (Đăng Ký Môn)',
                       subtitle: 'Xét duyệt kế hoạch học kỳ mới • Cảnh báo tải tự học >25h',
-                      countBadge: '${registrationPlans.length}',
+                      countBadge: pendingCount > 0 ? '$pendingCount chờ duyệt' : '${registrationPlans.length}',
                       activeColor: AppColors.primaryBlue,
                       activeBg: AppColors.primaryBlueSurface,
                     ),
@@ -374,8 +456,8 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       modeKey: 'acceptance',
                       icon: Icons.school_rounded,
                       title: '2. Duyệt Nghiệm Thu Kỳ Học & Bảng Điểm',
-                      subtitle: 'Xem bảng điểm số sinh viên đã nhập • Xác nhận nghiệm thu',
-                      countBadge: '${acceptancePlans.length}',
+                      subtitle: 'Xem bảng điểm số sinh viên đã nộp • Phê duyệt cộng tín chỉ & GPA',
+                      countBadge: pendingAcceptanceCount > 0 ? '$pendingAcceptanceCount chờ duyệt' : '${acceptancePlans.length}',
                       activeColor: const Color(0xFF7E22CE),
                       activeBg: const Color(0xFFF3E8FF),
                     ),
@@ -757,291 +839,490 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
   }
 
   // ==============================================================
-  // VIEW 2: DUYỆT NGHIỆM THU KỲ HỌC & BẢNG ĐIỂM MÔN HỌC (COMPLETED)
+  // VIEW 2: DUYỆT NGHIỆM THU KỲ HỌC & BẢNG ĐIỂM MÔN HỌC
   // ==============================================================
   Widget _buildAcceptanceView(List<StudyPlanModel> acceptancePlans) {
-    if (acceptancePlans.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(48),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.cardSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderStructural),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.school_outlined, size: 48, color: AppColors.textMuted),
-            SizedBox(height: 12),
-            Text(
-              'Chưa có kỳ học nào được sinh viên nộp nghiệm thu.',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      );
-    }
+    final pendingAcceptanceCount =
+        acceptancePlans.where((p) => p.status == 'pending_acceptance').length;
+    final completedCount =
+        acceptancePlans.where((p) => p.status == 'completed').length;
+    final rejectedAcceptanceCount =
+        acceptancePlans.where((p) => p.status == 'acceptance_rejected').length;
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: acceptancePlans.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final plan = acceptancePlans[index];
+    final filteredAcceptance = acceptancePlans.where((p) {
+      final matchesTab =
+          _acceptanceTab == 'all' || p.status == _acceptanceTab;
+      final matchesQuery = _searchQuery.isEmpty ||
+          p.studentName.toLowerCase().contains(_searchQuery) ||
+          p.studentCode.toLowerCase().contains(_searchQuery) ||
+          p.semesterName.toLowerCase().contains(_searchQuery);
+      return matchesTab && matchesQuery;
+    }).toList();
 
-        return Container(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Sub-toolbar for Acceptance Mode
+        Container(
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppColors.cardSurface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFD8B4FE), width: 1.2),
+            border: Border.all(color: AppColors.borderStructural),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF3E8FF),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.school, color: Color(0xFF7E22CE), size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(plan.studentName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                                const SizedBox(width: 8),
-                                if (plan.studentCode.isNotEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.backgroundCanvas,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: AppColors.borderStructural),
-                                    ),
-                                    child: Text(plan.studentCode, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text('Học kỳ nghiệm thu: ${plan.semesterName}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3E8FF),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFD8B4FE)),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildAcceptanceTabButton(
+                        'pending_acceptance',
+                        'Chờ nghiệm thu',
+                        pendingAcceptanceCount,
+                        AppColors.warningText,
+                        AppColors.warningSurface,
                       ),
+                      const SizedBox(width: 8),
+                      _buildAcceptanceTabButton(
+                        'completed',
+                        'Đã nghiệm thu',
+                        completedCount,
+                        const Color(0xFF7E22CE),
+                        const Color(0xFFF3E8FF),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildAcceptanceTabButton(
+                        'acceptance_rejected',
+                        'Yêu cầu sửa điểm',
+                        rejectedAcceptanceCount,
+                        AppColors.dangerText,
+                        AppColors.dangerSurface,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildAcceptanceTabButton(
+                        'all',
+                        'Tất cả',
+                        acceptancePlans.length,
+                        AppColors.neutralText,
+                        AppColors.neutralSurface,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 280,
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Tìm theo tên hoặc MSSV...',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                    suffixIcon: _searchCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                  ),
+                  onChanged: (val) =>
+                      setState(() => _searchQuery = val.trim().toLowerCase()),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        if (filteredAcceptance.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(48),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.cardSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderStructural),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _acceptanceTab == 'pending_acceptance'
+                      ? Icons.task_alt
+                      : Icons.school_outlined,
+                  size: 48,
+                  color: _acceptanceTab == 'pending_acceptance'
+                      ? AppColors.successText
+                      : AppColors.textMuted,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _acceptanceTab == 'pending_acceptance'
+                      ? 'Không có kỳ học nào đang chờ nghiệm thu bảng điểm.'
+                      : 'Không có hồ sơ nghiệm thu nào trong mục này.',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredAcceptance.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final plan = filteredAcceptance[index];
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: AppColors.cardSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: plan.isPendingAcceptance
+                        ? AppColors.warningBorder
+                        : (plan.isAcceptanceRejected
+                            ? AppColors.dangerBorder
+                            : const Color(0xFFD8B4FE)),
+                    width: 1.2,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.all(20),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.verified, size: 14, color: Color(0xFF7E22CE)),
-                          SizedBox(width: 6),
-                          Text('Đã Nghiệm Thu', style: TextStyle(color: Color(0xFF7E22CE), fontWeight: FontWeight.bold, fontSize: 12)),
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3E8FF),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.school, color: Color(0xFF7E22CE), size: 24),
+                              ),
+                              const SizedBox(width: 14),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(plan.studentName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                      const SizedBox(width: 8),
+                                      if (plan.studentCode.isNotEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.backgroundCanvas,
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: AppColors.borderStructural),
+                                          ),
+                                          child: Text(plan.studentCode, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text('Học kỳ nghiệm thu: ${plan.semesterName}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                                ],
+                              ),
+                            ],
+                          ),
+                          _buildStatusBadge(plan.status),
+                        ],
+                      ),
+                    ),
+
+                    const Divider(height: 1, color: AppColors.borderStructural),
+
+                    // Grades Table for this Semester (use plan.submittedGrades directly if available!)
+                    Builder(
+                      builder: (context) {
+                        if (plan.submittedGrades.isNotEmpty) {
+                          return _buildGradesTableSection(plan, plan.submittedGrades);
+                        }
+                        return FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _getGradesForPlan(plan),
+                          builder: (context, gradeSnap) {
+                            if (gradeSnap.connectionState == ConnectionState.waiting) {
+                              return const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(child: CircularProgressIndicator(color: Color(0xFF7E22CE))),
+                              );
+                            }
+                            return _buildGradesTableSection(plan, gradeSnap.data ?? []);
+                          },
+                        );
+                      },
+                    ),
+
+                    // Advisor Review Action / History
+                    const Divider(height: 1, color: AppColors.borderStructural),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (plan.reviewReason != null && plan.reviewReason!.isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                'Đánh giá Cố vấn: "${plan.reviewReason}" (bởi ${plan.reviewedBy ?? 'Cố vấn'})',
+                                style: TextStyle(
+                                  color: plan.isAcceptanceRejected
+                                      ? AppColors.dangerText
+                                      : const Color(0xFF7E22CE),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            )
+                          else
+                            const Expanded(
+                              child: Text(
+                                'Kiểm tra bảng điểm sinh viên nộp trước khi phê duyệt cộng tín chỉ.',
+                                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                              ),
+                            ),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => _showAcceptanceDialog(plan, false),
+                            icon: const Icon(Icons.close, size: 16, color: AppColors.dangerText),
+                            label: const Text('Yêu Cầu Sửa Điểm', style: TextStyle(color: AppColors.dangerText)),
+                            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.dangerBorder)),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton.icon(
+                            onPressed: () => _showAcceptanceDialog(plan, true),
+                            icon: const Icon(Icons.verified, size: 16),
+                            label: Text(
+                              plan.isCompleted
+                                  ? 'Cập Nhật Nghiệm Thu'
+                                  : 'Phê Duyệt & Cộng Tín Chỉ',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF7E22CE),
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
-              ),
+              );
+            },
+          ),
+      ],
+    );
+  }
 
-              const Divider(height: 1, color: AppColors.borderStructural),
+  Widget _buildGradesTableSection(
+    StudyPlanModel plan,
+    List<Map<String, dynamic>> coursesWithGrades,
+  ) {
+    if (coursesWithGrades.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Text(
+          'Học kỳ gồm ${plan.courses.length} môn học (${plan.totalCredits} TC). Sinh viên chưa nhập điểm chi tiết.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
 
-              // Grades Table for this Semester
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _getGradesForPlan(plan),
-                builder: (context, gradeSnap) {
-                  if (gradeSnap.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator(color: Color(0xFF7E22CE))),
-                    );
-                  }
+    int totalEarnedCredits = 0;
+    int totalAllCredits = 0;
+    double weightedGradeSum = 0;
+    int passedCount = 0;
 
-                  final coursesWithGrades = gradeSnap.data ?? [];
+    for (var c in coursesWithGrades) {
+      final cr = (c['credits'] as num?)?.toInt() ?? 3;
+      final g = (c['grade'] as num?)?.toDouble() ?? 0.0;
+      final isPass = c['isPassed'] as bool? ?? (g >= 4.0);
+      totalAllCredits += cr;
+      if (isPass) {
+        totalEarnedCredits += cr;
+        passedCount++;
+      }
+      weightedGradeSum += (g * cr);
+    }
 
-                  if (coursesWithGrades.isEmpty) {
-                    // Fallback to plan.courses if completed_courses subcollection has no separate documents
-                    return Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        'Đã hoàn thành ${plan.courses.length} môn học (${plan.totalCredits} TC). Sinh viên chưa nhập điểm chi tiết.',
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                    );
-                  }
+    final avgGrade = totalAllCredits > 0 ? (weightedGradeSum / totalAllCredits) : 0.0;
 
-                  // Calculate stats
-                  int totalEarnedCredits = 0;
-                  double weightedGradeSum = 0;
-                  int passedCount = 0;
-
-                  for (var c in coursesWithGrades) {
-                    final cr = (c['credits'] as num?)?.toInt() ?? 3;
-                    final g = (c['grade'] as num?)?.toDouble() ?? 0.0;
-                    final isPass = c['isPassed'] as bool? ?? (g >= 5.0);
-                    if (isPass) {
-                      totalEarnedCredits += cr;
-                      passedCount++;
-                    }
-                    weightedGradeSum += (g * cr);
-                  }
-
-                  final avgGrade = totalEarnedCredits > 0 ? (weightedGradeSum / totalEarnedCredits) : 0.0;
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Metric Summary Bar
-                      Container(
-                        color: const Color(0xFFFAF5FF),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildStatItem('Số môn nghiệm thu', '${coursesWithGrades.length} môn'),
-                            _buildStatItem('Tín chỉ tích lũy', '$totalEarnedCredits TC'),
-                            _buildStatItem('Điểm TB Học kỳ', '${avgGrade.toStringAsFixed(2)} / 10'),
-                            _buildStatItem('Tỷ lệ qua môn', '$passedCount/${coursesWithGrades.length} (${((passedCount / coursesWithGrades.length) * 100).toInt()}%)'),
-                          ],
-                        ),
-                      ),
-
-                      const Divider(height: 1, color: AppColors.borderStructural),
-
-                      // Detailed Table of Courses & Grades
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Table(
-                          columnWidths: const {
-                            0: FlexColumnWidth(1.5),
-                            1: FlexColumnWidth(3.5),
-                            2: FlexColumnWidth(1.2),
-                            3: FlexColumnWidth(1.5),
-                            4: FlexColumnWidth(1.2),
-                            5: FlexColumnWidth(1.5),
-                          },
-                          children: [
-                            const TableRow(
-                              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.borderStructural, width: 1.5))),
-                              children: [
-                                Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Mã môn', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                                Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Tên môn học', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                                Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Số TC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                                Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Điểm số (0-10)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                                Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Điểm chữ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                                Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Kết quả', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                              ],
-                            ),
-                            ...coursesWithGrades.map((course) {
-                              final code = course['code'] as String? ?? '—';
-                              final name = course['name'] as String? ?? '—';
-                              final cr = (course['credits'] as num?)?.toInt() ?? 3;
-                              final grade = (course['grade'] as num?)?.toDouble() ?? 0.0;
-                              final letter = course['gradeLetter'] as String? ?? (grade >= 8.5 ? 'A' : (grade >= 7.0 ? 'B' : (grade >= 5.5 ? 'C' : 'D')));
-                              final isPassed = course['isPassed'] as bool? ?? (grade >= 5.0);
-
-                              return TableRow(
-                                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.borderDivider))),
-                                children: [
-                                  Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(code, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7E22CE)))),
-                                  Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
-                                  Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text('$cr TC')),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    child: Text(
-                                      grade.toStringAsFixed(1),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: isPassed ? AppColors.successText : AppColors.dangerText,
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.backgroundCanvas,
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(color: AppColors.borderStructural),
-                                      ),
-                                      child: Text(letter, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    child: Text(
-                                      isPassed ? '✅ Đạt' : '❌ Chưa đạt',
-                                      style: TextStyle(
-                                        color: isPassed ? AppColors.successText : AppColors.dangerText,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-
-              // Advisor Review Action / History
-              const Divider(height: 1, color: AppColors.borderStructural),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (plan.reviewReason != null && plan.reviewReason!.isNotEmpty)
-                      Expanded(
-                        child: Text(
-                          'Đánh giá Cố vấn: "${plan.reviewReason}" (bởi ${plan.reviewedBy ?? 'Cố vấn'})',
-                          style: const TextStyle(color: Color(0xFF7E22CE), fontWeight: FontWeight.w600, fontSize: 12),
-                        ),
-                      )
-                    else
-                      const Text('Chưa có ghi chú đánh giá học kỳ.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAcceptanceDialog(plan),
-                      icon: const Icon(Icons.edit_note, size: 16),
-                      label: const Text('Đánh Giá & Cập Nhật Nghiệm Thu'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF7E22CE),
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          color: const Color(0xFFFAF5FF),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem('Số môn nghiệm thu', '${coursesWithGrades.length} môn'),
+              _buildStatItem('Tín chỉ đạt', '$totalEarnedCredits TC'),
+              _buildStatItem('Điểm TB Học kỳ', '${avgGrade.toStringAsFixed(2)} / 10'),
+              _buildStatItem(
+                'Tỷ lệ qua môn',
+                '$passedCount/${coursesWithGrades.length} (${((passedCount / coursesWithGrades.length) * 100).toInt()}%)',
               ),
             ],
           ),
-        );
-      },
+        ),
+        const Divider(height: 1, color: AppColors.borderStructural),
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Table(
+            columnWidths: const {
+              0: FlexColumnWidth(1.5),
+              1: FlexColumnWidth(3.5),
+              2: FlexColumnWidth(1.2),
+              3: FlexColumnWidth(1.5),
+              4: FlexColumnWidth(1.2),
+              5: FlexColumnWidth(1.5),
+            },
+            children: [
+              const TableRow(
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: AppColors.borderStructural, width: 1.5)),
+                ),
+                children: [
+                  Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Mã môn', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Tên môn học', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Số TC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Điểm số (0-10)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Điểm chữ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                  Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Kết quả', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                ],
+              ),
+              ...coursesWithGrades.map((course) {
+                final code = course['code'] as String? ?? '—';
+                final name = course['name'] as String? ?? '—';
+                final cr = (course['credits'] as num?)?.toInt() ?? 3;
+                final grade = (course['grade'] as num?)?.toDouble() ?? 0.0;
+                final letter = course['gradeLetter'] as String? ??
+                    (grade >= 8.5
+                        ? 'A'
+                        : (grade >= 7.0
+                            ? 'B'
+                            : (grade >= 5.5
+                                ? 'C'
+                                : (grade >= 4.0 ? 'D' : 'F'))));
+                final isPassed = course['isPassed'] as bool? ?? (grade >= 4.0);
+
+                return TableRow(
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: AppColors.borderDivider)),
+                  ),
+                  children: [
+                    Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(code, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7E22CE)))),
+                    Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
+                    Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text('$cr TC')),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(
+                        grade.toStringAsFixed(1),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: isPassed ? AppColors.successText : AppColors.dangerText,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundCanvas,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: AppColors.borderStructural),
+                        ),
+                        child: Text(letter, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(
+                        isPassed ? '✅ Đạt' : '❌ Chưa đạt',
+                        style: TextStyle(
+                          color: isPassed ? AppColors.successText : AppColors.dangerText,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAcceptanceTabButton(
+    String tabKey,
+    String label,
+    int count,
+    Color activeColor,
+    Color activeBg,
+  ) {
+    final isSelected = _acceptanceTab == tabKey;
+    return InkWell(
+      onTap: () => setState(() => _acceptanceTab = tabKey),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? activeColor.withValues(alpha: 0.3) : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? activeColor : AppColors.textSecondary,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected ? activeColor : AppColors.borderStructural,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  color: isSelected ? Colors.white : AppColors.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1197,10 +1478,18 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
       bg = AppColors.dangerSurface;
       text = AppColors.dangerText;
       label = 'Yêu cầu sửa';
+    } else if (status == 'pending_acceptance') {
+      bg = AppColors.warningSurface;
+      text = AppColors.warningText;
+      label = 'Chờ nghiệm thu điểm';
+    } else if (status == 'acceptance_rejected') {
+      bg = AppColors.dangerSurface;
+      text = AppColors.dangerText;
+      label = 'Yêu cầu sửa điểm';
     } else if (status == 'completed') {
       bg = const Color(0xFFF3E8FF);
       text = const Color(0xFF7E22CE);
-      label = 'Đã hoàn thành';
+      label = 'Đã nghiệm thu';
     }
 
     return Container(

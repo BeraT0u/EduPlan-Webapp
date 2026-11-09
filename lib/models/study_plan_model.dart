@@ -9,10 +9,11 @@ class StudyPlanModel {
   final double totalSelfStudyHours;
   final double maxSafeThresholdHours;
   final int tuitionFee;
-  final String status; // 'draft' | 'pending' | 'approved' | 'rejected' | 'completed'
+  final String status; // 'draft' | 'pending' | 'approved' | 'rejected' | 'pending_acceptance' | 'acceptance_rejected' | 'completed'
   final String? reviewReason;
   final String? reviewedBy;
   final DateTime? reviewedAt;
+  final List<Map<String, dynamic>> submittedGrades;
 
   StudyPlanModel({
     required this.id,
@@ -29,14 +30,23 @@ class StudyPlanModel {
     this.reviewReason,
     this.reviewedBy,
     this.reviewedAt,
+    this.submittedGrades = const [],
   });
 
   bool get isPending => status == 'pending';
   bool get isApproved => status == 'approved';
   bool get isRejected => status == 'rejected';
+  bool get isPendingAcceptance => status == 'pending_acceptance';
+  bool get isAcceptanceRejected => status == 'acceptance_rejected';
+  bool get isCompleted => status == 'completed';
 
   factory StudyPlanModel.fromMap(Map<String, dynamic> map, String id) {
     final coursesList = (map['courses'] as List?)
+            ?.map((e) => (e as Map).cast<String, dynamic>())
+            .toList() ??
+        [];
+
+    final submittedGradesList = (map['submittedGrades'] as List?)
             ?.map((e) => (e as Map).cast<String, dynamic>())
             .toList() ??
         [];
@@ -66,7 +76,8 @@ class StudyPlanModel {
 
     if (parsedHours == 0.0 && coursesList.isNotEmpty) {
       parsedHours = coursesList.fold<double>(0.0, (sum, c) {
-        final h = (c['defaultSelfStudyHours'] as num?)?.toDouble() ??
+        final h = (c['plannedSelfStudyHours'] as num?)?.toDouble() ??
+            (c['defaultSelfStudyHours'] as num?)?.toDouble() ??
             (c['hours'] as num?)?.toDouble() ??
             (c['selfStudyHours'] as num?)?.toDouble() ??
             (c['weeklyHours'] as num?)?.toDouble() ??
@@ -91,6 +102,7 @@ class StudyPlanModel {
       status: map['status'] as String? ?? 'pending',
       reviewReason: map['reviewReason'] as String?,
       reviewedBy: map['reviewedBy'] as String?,
+      submittedGrades: submittedGradesList,
     );
   }
 }

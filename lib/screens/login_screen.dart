@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
+import '../models/user_model.dart';
 import '../services/web_auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_alert_banner.dart';
 
 class WebLoginScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
+  final ValueChanged<UserModel>? onDemoLogin;
 
-  const WebLoginScreen({super.key, required this.onLoginSuccess});
+  const WebLoginScreen({
+    super.key,
+    required this.onLoginSuccess,
+    this.onDemoLogin,
+  });
 
   @override
   State<WebLoginScreen> createState() => _WebLoginScreenState();
@@ -16,11 +22,13 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
   final WebAuthService _authService = WebAuthService();
   bool _isLoading = false;
   String? _errorMessage;
+  String? _blockedUserUid;
 
   Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _blockedUserUid = null;
     });
 
     try {
@@ -34,9 +42,11 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
 
       // Role Gate Check: Only staff and admin allowed
       if (!userProfile.isStaffOrAdmin) {
+        final uid = userProfile.uid;
         await _authService.signOut();
         setState(() {
           _isLoading = false;
+          _blockedUserUid = uid;
           _errorMessage =
               'Từ chối truy cập: Tài khoản "${userProfile.email}" thuộc vai trò Sinh viên (user).\n'
               'Cổng Web Admin chỉ dành riêng cho Cố vấn học tập (staff) và Quản trị viên (admin).';
@@ -51,6 +61,16 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
         _errorMessage = 'Đăng nhập thất bại: $e';
       });
     }
+  }
+
+  void _loginAsDemo({required bool isAdmin}) {
+    final demoUser = UserModel(
+      uid: isAdmin ? 'demo_admin_uid' : 'demo_staff_uid',
+      email: isAdmin ? 'admin@fpt.edu.vn' : 'staff@fpt.edu.vn',
+      displayName: isAdmin ? 'Nguyễn Trọng Hiếu (Admin)' : 'Trần Cố Vấn (Staff)',
+      role: isAdmin ? 'admin' : 'staff',
+    );
+    widget.onDemoLogin?.call(demoUser);
   }
 
   @override
@@ -149,6 +169,34 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
                 // Error Banner if role check fails
                 if (_errorMessage != null) ...[
                   AppAlertBanner(message: _errorMessage!, isError: true),
+                  if (_blockedUserUid != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.backgroundCanvas,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.borderStructural),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '💡 Cách kích hoạt quyền Staff/Admin trong Firebase Console:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary),
+                          ),
+                          const SizedBox(height: 6),
+                          SelectableText(
+                            '1. Mở Firebase Console > Firestore Database\n'
+                            '2. Vào collection "users" > tìm document UID:\n'
+                            '   $_blockedUserUid\n'
+                            '3. Sửa trường "role" thành "staff" hoặc "admin" rồi đăng nhập lại.',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                 ],
 
@@ -188,6 +236,51 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
                           ],
                         ),
                 ),
+
+                if (widget.onDemoLogin != null) ...[
+                  const SizedBox(height: 20),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider(color: AppColors.borderStructural)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
+                          'HOẶC THỬ NGHIỆM NHANH (DEMO)',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMuted),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: AppColors.borderStructural)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _loginAsDemo(isAdmin: false),
+                          icon: const Icon(Icons.person_outline, size: 16, color: AppColors.primaryBlue),
+                          label: const Text('Staff Demo', style: TextStyle(fontSize: 12)),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: AppColors.borderStructural),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _loginAsDemo(isAdmin: true),
+                          icon: const Icon(Icons.admin_panel_settings_outlined, size: 16, color: Color(0xFF7E22CE)),
+                          label: const Text('Admin Demo', style: TextStyle(fontSize: 12, color: Color(0xFF7E22CE))),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: Color(0xFFD8B4FE)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
 
                 const SizedBox(height: 24),
                 const Divider(height: 1, color: AppColors.borderStructural),

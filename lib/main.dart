@@ -45,9 +45,56 @@ class WebRootGate extends StatefulWidget {
 class _WebRootGateState extends State<WebRootGate> {
   final WebAuthService _authService = WebAuthService();
   int _selectedIndex = 0;
+  UserModel? _demoUser;
+
+  Widget _buildScreen(UserModel userProfile) {
+    Widget activeScreen;
+    String screenTitle;
+
+    switch (_selectedIndex) {
+      case 0:
+        activeScreen = DashboardScreen(
+          onNavigateToReviews: () => setState(() => _selectedIndex = 2),
+        );
+        screenTitle = 'Dashboard Học Vụ & Thống Kê Tổng Hợp';
+        break;
+      case 1:
+        activeScreen = CoursesScreen(currentUser: userProfile);
+        screenTitle = 'Quản Trị Danh Mục Môn Học (Course Catalog)';
+        break;
+      case 2:
+        activeScreen = ReviewsScreen(currentUser: userProfile);
+        screenTitle = 'Hàng Đợi Duyệt Kế Hoạch Học Tập (Review Queue)';
+        break;
+      case 3:
+        activeScreen = AnnouncementsScreen(currentUser: userProfile);
+        screenTitle = 'Phát Hành Thông Báo & Phân Quyền Tài Khoản';
+        break;
+      default:
+        activeScreen = const SizedBox();
+        screenTitle = 'EduPlan Admin';
+    }
+
+    return WebShellScaffold(
+      selectedIndex: _selectedIndex,
+      onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+      currentUser: userProfile,
+      title: screenTitle,
+      body: activeScreen,
+      onSignOut: () {
+        if (_demoUser != null) {
+          setState(() => _demoUser = null);
+        }
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_demoUser != null) {
+      return _buildScreen(_demoUser!);
+    }
+
     return StreamBuilder<User?>(
       stream: _authService.authStateChanges,
       builder: (context, authSnapshot) {
@@ -60,7 +107,10 @@ class _WebRootGateState extends State<WebRootGate> {
 
         final firebaseUser = authSnapshot.data;
         if (firebaseUser == null) {
-          return WebLoginScreen(onLoginSuccess: () => setState(() {}));
+          return WebLoginScreen(
+            onLoginSuccess: () => setState(() {}),
+            onDemoLogin: (user) => setState(() => _demoUser = user),
+          );
         }
 
         // Fetch User profile from Firestore to enforce Role Gate
@@ -78,44 +128,13 @@ class _WebRootGateState extends State<WebRootGate> {
             if (userProfile == null || !userProfile.isStaffOrAdmin) {
               // Sign out immediately if not staff/admin
               _authService.signOut();
-              return WebLoginScreen(onLoginSuccess: () => setState(() {}));
+              return WebLoginScreen(
+                onLoginSuccess: () => setState(() {}),
+                onDemoLogin: (user) => setState(() => _demoUser = user),
+              );
             }
 
-            // Screen switcher
-            Widget activeScreen;
-            String screenTitle;
-
-            switch (_selectedIndex) {
-              case 0:
-                activeScreen = DashboardScreen(
-                  onNavigateToReviews: () => setState(() => _selectedIndex = 2),
-                );
-                screenTitle = 'Dashboard Học Vụ & Thống Kê Tổng Hợp';
-                break;
-              case 1:
-                activeScreen = CoursesScreen(currentUser: userProfile);
-                screenTitle = 'Quản Trị Danh Mục Môn Học (Course Catalog)';
-                break;
-              case 2:
-                activeScreen = ReviewsScreen(currentUser: userProfile);
-                screenTitle = 'Hàng Đợi Duyệt Kế Hoạch Học Tập (Review Queue)';
-                break;
-              case 3:
-                activeScreen = AnnouncementsScreen(currentUser: userProfile);
-                screenTitle = 'Phát Hành Thông Báo & Phân Quyền Tài Khoản';
-                break;
-              default:
-                activeScreen = const SizedBox();
-                screenTitle = 'EduPlan Admin';
-            }
-
-            return WebShellScaffold(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
-              currentUser: userProfile,
-              title: screenTitle,
-              body: activeScreen,
-            );
+            return _buildScreen(userProfile);
           },
         );
       },
