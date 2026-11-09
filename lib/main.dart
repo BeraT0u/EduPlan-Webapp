@@ -45,7 +45,6 @@ class WebRootGate extends StatefulWidget {
 class _WebRootGateState extends State<WebRootGate> {
   final WebAuthService _authService = WebAuthService();
   int _selectedIndex = 0;
-  UserModel? _demoUser;
 
   Widget _buildScreen(UserModel userProfile) {
     Widget activeScreen;
@@ -81,20 +80,11 @@ class _WebRootGateState extends State<WebRootGate> {
       currentUser: userProfile,
       title: screenTitle,
       body: activeScreen,
-      onSignOut: () {
-        if (_demoUser != null) {
-          setState(() => _demoUser = null);
-        }
-      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_demoUser != null) {
-      return _buildScreen(_demoUser!);
-    }
-
     return StreamBuilder<User?>(
       stream: _authService.authStateChanges,
       builder: (context, authSnapshot) {
@@ -109,7 +99,6 @@ class _WebRootGateState extends State<WebRootGate> {
         if (firebaseUser == null) {
           return WebLoginScreen(
             onLoginSuccess: () => setState(() {}),
-            onDemoLogin: (user) => setState(() => _demoUser = user),
           );
         }
 
@@ -130,7 +119,6 @@ class _WebRootGateState extends State<WebRootGate> {
               _authService.signOut();
               return WebLoginScreen(
                 onLoginSuccess: () => setState(() {}),
-                onDemoLogin: (user) => setState(() => _demoUser = user),
               );
             }
 

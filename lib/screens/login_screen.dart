@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import '../models/user_model.dart';
 import '../services/web_auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_alert_banner.dart';
 
 class WebLoginScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
-  final ValueChanged<UserModel>? onDemoLogin;
 
   const WebLoginScreen({
     super.key,
     required this.onLoginSuccess,
-    this.onDemoLogin,
   });
 
   @override
@@ -61,16 +58,6 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
         _errorMessage = 'Đăng nhập thất bại: $e';
       });
     }
-  }
-
-  void _loginAsDemo({required bool isAdmin}) {
-    final demoUser = UserModel(
-      uid: isAdmin ? 'demo_admin_uid' : 'demo_staff_uid',
-      email: isAdmin ? 'admin@fpt.edu.vn' : 'staff@fpt.edu.vn',
-      displayName: isAdmin ? 'Nguyễn Trọng Hiếu (Admin)' : 'Trần Cố Vấn (Staff)',
-      role: isAdmin ? 'admin' : 'staff',
-    );
-    widget.onDemoLogin?.call(demoUser);
   }
 
   @override
@@ -236,51 +223,6 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
                           ],
                         ),
                 ),
-
-                if (widget.onDemoLogin != null) ...[
-                  const SizedBox(height: 20),
-                  Row(
-                    children: const [
-                      Expanded(child: Divider(color: AppColors.borderStructural)),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          'HOẶC THỬ NGHIỆM NHANH (DEMO)',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMuted),
-                        ),
-                      ),
-                      Expanded(child: Divider(color: AppColors.borderStructural)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _loginAsDemo(isAdmin: false),
-                          icon: const Icon(Icons.person_outline, size: 16, color: AppColors.primaryBlue),
-                          label: const Text('Staff Demo', style: TextStyle(fontSize: 12)),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: const BorderSide(color: AppColors.borderStructural),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _loginAsDemo(isAdmin: true),
-                          icon: const Icon(Icons.admin_panel_settings_outlined, size: 16, color: Color(0xFF7E22CE)),
-                          label: const Text('Admin Demo', style: TextStyle(fontSize: 12, color: Color(0xFF7E22CE))),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: const BorderSide(color: Color(0xFFD8B4FE)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
 
                 const SizedBox(height: 24),
                 const Divider(height: 1, color: AppColors.borderStructural),

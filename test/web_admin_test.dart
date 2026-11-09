@@ -9,16 +9,13 @@ import 'package:eduplan_web_admin/widgets/web_shell_scaffold.dart';
 
 void main() {
   group('Web Admin UI & Navigation Widget Tests', () {
-    testWidgets('WebLoginScreen renders properly and handles demo staff/admin login buttons',
+    testWidgets('WebLoginScreen renders properly with Google sign in button',
         (tester) async {
-      UserModel? loggedInUser;
-
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.warmPaperTheme,
           home: WebLoginScreen(
             onLoginSuccess: () {},
-            onDemoLogin: (user) => loggedInUser = user,
           ),
         ),
       );
@@ -27,24 +24,6 @@ void main() {
       // Verify title & branding
       expect(find.text('Cổng Cố Vấn & Quản Trị Đào Tạo'), findsOneWidget);
       expect(find.text('Đăng nhập bằng Google'), findsOneWidget);
-      expect(find.text('Staff Demo'), findsOneWidget);
-      expect(find.text('Admin Demo'), findsOneWidget);
-
-      // Tap Staff Demo
-      await tester.tap(find.text('Staff Demo'));
-      await tester.pumpAndSettle();
-
-      expect(loggedInUser, isNotNull);
-      expect(loggedInUser!.role, 'staff');
-      expect(loggedInUser!.email, 'staff@fpt.edu.vn');
-
-      // Tap Admin Demo
-      await tester.tap(find.text('Admin Demo'));
-      await tester.pumpAndSettle();
-
-      expect(loggedInUser, isNotNull);
-      expect(loggedInUser!.role, 'admin');
-      expect(loggedInUser!.email, 'admin@fpt.edu.vn');
     });
 
     testWidgets('WebShellScaffold renders sidebar, navigation tabs, and handles tab switching',
