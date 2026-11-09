@@ -29,15 +29,49 @@ class WebAuthService {
 
     final userDoc = await firestore.collection('users').doc(user.uid).get();
     if (!userDoc.exists) {
-      final newUser = UserModel(
-        uid: user.uid,
-        email: user.email ?? '',
-        displayName: user.displayName ?? 'Sinh viên mới',
-        photoUrl: user.photoURL,
-        role: 'user', // Mặc định role là user
-      );
-      await firestore.collection('users').doc(user.uid).set(newUser.toMap());
-      return newUser;
+      final userEmail = (user.email ?? '').toLowerCase().trim();
+
+      // Check if an admin pre-provisioned this user by email
+      final query = await firestore
+          .collection('users')
+          .where('email', isEqualTo: userEmail)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final preDoc = query.docs.first;
+        final preData = preDoc.data();
+        final assignedRole = preData['role'] as String? ?? 'user';
+
+        final finalUser = UserModel(
+          uid: user.uid,
+          email: user.email ?? userEmail,
+          displayName: user.displayName ?? (preData['displayName'] as String? ?? 'Người dùng'),
+          photoUrl: user.photoURL ?? (preData['photoUrl'] as String?),
+          role: assignedRole,
+          status: 'active',
+        );
+
+        // Save under the real authenticated UID
+        await firestore.collection('users').doc(user.uid).set(finalUser.toMap());
+
+        // Remove placeholder document if it used a generated ID
+        if (preDoc.id != user.uid) {
+          await firestore.collection('users').doc(preDoc.id).delete();
+        }
+
+        return finalUser;
+      } else {
+        final newUser = UserModel(
+          uid: user.uid,
+          email: user.email ?? '',
+          displayName: user.displayName ?? 'Sinh viên mới',
+          photoUrl: user.photoURL,
+          role: 'user', // Mặc định role là user
+        );
+        await firestore.collection('users').doc(user.uid).set(newUser.toMap());
+        return newUser;
+      }
     }
 
     return UserModel.fromMap(userDoc.data()!, user.uid);

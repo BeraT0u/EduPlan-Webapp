@@ -31,6 +31,7 @@ migrate_working_dir/
 /build/
 
 # Web related
+.firebase/
 
 # Symbol processing related
 undecorated_symbols

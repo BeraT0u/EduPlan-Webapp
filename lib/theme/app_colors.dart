@@ -18,6 +18,9 @@ class AppColors {
   static const Color primaryBlueSurface = Color(0xFFEFF6FF);
 
   // Semantic Status Colors
+  static const Color successGreen = Color(0xFF15803D);
+  static const Color errorRed = Color(0xFFDC2626);
+
   static const Color successSurface = Color(0xFFDCFCE7);   // Badge Approved / Published
   static const Color successText = Color(0xFF15803D);
   static const Color successBorder = Color(0xFF86EFAC);

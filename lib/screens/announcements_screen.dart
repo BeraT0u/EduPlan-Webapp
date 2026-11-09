@@ -60,6 +60,247 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
   }
 
+  void _showAddUserDialog() {
+    final formKey = GlobalKey<FormState>();
+    final emailCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    String selectedRole = 'staff';
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.cardSurface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppColors.borderStructural),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlueSurface,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.person_add_alt_1, color: AppColors.primaryBlue, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Thêm Tài Khoản Bằng Email',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 480,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlueSurface.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.2)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 20, color: AppColors.primaryBlue),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Cấp trước quyền (pre-provision) cho Cố vấn hoặc Quản trị viên mới. '
+                                  'Khi người dùng này đăng nhập bằng Google với email tương ứng, hệ thống sẽ tự động gán vai trò này.',
+                                  style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary, height: 1.35),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        TextFormField(
+                          controller: emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Địa chỉ Email (*)',
+                            hintText: 'vidu@fpt.edu.vn hoặc user@gmail.com',
+                            prefixIcon: Icon(Icons.email_outlined, size: 20),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Vui lòng nhập email';
+                            }
+                            final trimmed = value.trim();
+                            if (!trimmed.contains('@') || !trimmed.contains('.')) {
+                              return 'Email không hợp lệ';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: nameCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Họ và tên (Tùy chọn)',
+                            hintText: 'Nhập họ tên hiển thị (nếu có)',
+                            prefixIcon: Icon(Icons.badge_outlined, size: 20),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedRole,
+                          decoration: const InputDecoration(
+                            labelText: 'Vai trò phân quyền (*)',
+                            prefixIcon: Icon(Icons.admin_panel_settings_outlined, size: 20),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'staff',
+                              child: Text('Cố vấn học tập (staff) - Duyệt kế hoạch & điểm'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'admin',
+                              child: Text('Quản trị viên (admin) - Toàn quyền hệ thống'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'user',
+                              child: Text('Sinh viên (user) - Chỉ sử dụng App mobile'),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedRole = val);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actionsPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSubmitting = true);
+                          try {
+                            final msg = await _announcementService.addOrUpdateUserByEmail(
+                              email: emailCtrl.text,
+                              role: selectedRole,
+                              displayName: nameCtrl.text.trim().isEmpty ? null : nameCtrl.text.trim(),
+                            );
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(msg),
+                                  backgroundColor: AppColors.successGreen,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() => isSubmitting = false);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Lỗi khi thêm tài khoản: $e'),
+                                  backgroundColor: AppColors.errorRed,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.check, size: 16),
+                  label: Text(isSubmitting ? 'Đang lưu...' : 'Lưu & Phân Quyền'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteUser(UserModel user) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.borderStructural),
+          ),
+          title: const Text('Xác nhận xóa tài khoản', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text(
+            'Bạn có chắc chắn muốn xóa tài khoản "${user.displayName}" (${user.email}) khỏi danh sách hệ thống?\n\n'
+            'Người dùng này sẽ mất mọi quyền truy cập tương ứng.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                try {
+                  await _announcementService.deleteUser(user.uid);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Đã xóa tài khoản ${user.email} thành công!')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Lỗi khi xóa tài khoản: $e')),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.errorRed,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Xóa Tài Khoản'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -247,13 +488,28 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                         ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBlueSurface,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text('ADMIN ACCESS', style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold, fontSize: 11)),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _showAddUserDialog,
+                          icon: const Icon(Icons.person_add_alt_1, size: 16),
+                          label: const Text('Thêm Tài Khoản Bằng Email'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlueSurface,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text('ADMIN ACCESS', style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold, fontSize: 11)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -273,9 +529,10 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     return Table(
                       columnWidths: const {
                         0: FlexColumnWidth(2.5),
-                        1: FlexColumnWidth(3),
-                        2: FlexColumnWidth(2),
-                        3: FlexColumnWidth(2),
+                        1: FlexColumnWidth(3.0),
+                        2: FlexColumnWidth(1.8),
+                        3: FlexColumnWidth(2.2),
+                        4: FlexColumnWidth(0.8),
                       },
                       children: [
                         const TableRow(
@@ -285,6 +542,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                             Padding(padding: EdgeInsets.all(10), child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold))),
                             Padding(padding: EdgeInsets.all(10), child: Text('Vai trò hiện tại', style: TextStyle(fontWeight: FontWeight.bold))),
                             Padding(padding: EdgeInsets.all(10), child: Text('Thay đổi vai trò', style: TextStyle(fontWeight: FontWeight.bold))),
+                            Padding(padding: EdgeInsets.all(10), child: Text('Hành động', style: TextStyle(fontWeight: FontWeight.bold))),
                           ],
                         ),
                         ...users.map((u) {
@@ -333,6 +591,16 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                             _announcementService.updateUserRole(u.uid, newRole);
                                           }
                                         },
+                                      ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                                child: isSelf
+                                    ? const SizedBox()
+                                    : IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.errorRed),
+                                        tooltip: 'Xóa tài khoản',
+                                        onPressed: () => _confirmDeleteUser(u),
                                       ),
                               ),
                             ],

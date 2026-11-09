@@ -39,4 +39,52 @@ class WebAnnouncementService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<String> addOrUpdateUserByEmail({
+    required String email,
+    required String role,
+    String? displayName,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+
+    // Check if user already exists with this email
+    final query = await _firestore
+        .collection('users')
+        .where('email', isEqualTo: normalizedEmail)
+        .limit(1)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      final doc = query.docs.first;
+      final updateData = <String, dynamic>{
+        'role': role,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (displayName != null && displayName.trim().isNotEmpty) {
+        updateData['displayName'] = displayName.trim();
+      }
+      await doc.reference.update(updateData);
+      return 'Đã cập nhật vai trò ${role.toUpperCase()} cho tài khoản $normalizedEmail';
+    } else {
+      final newDoc = _firestore.collection('users').doc();
+      final effectiveName = (displayName != null && displayName.trim().isNotEmpty)
+          ? displayName.trim()
+          : normalizedEmail.split('@').first;
+
+      await newDoc.set({
+        'uid': newDoc.id,
+        'email': normalizedEmail,
+        'displayName': effectiveName,
+        'role': role,
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return 'Đã cấp quyền thành công cho tài khoản $normalizedEmail ($role)';
+    }
+  }
+
+  Future<void> deleteUser(String uid) async {
+    await _firestore.collection('users').doc(uid).delete();
+  }
 }
